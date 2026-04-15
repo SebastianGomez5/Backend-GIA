@@ -16,7 +16,6 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     user_id: UUID
 
-
 class TaskResponse(TaskBase):
     id: UUID
     user_id: UUID
