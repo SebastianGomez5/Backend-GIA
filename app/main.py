@@ -7,6 +7,7 @@ from app.api.endpoints import users
 from app.api.endpoints import auth
 from app.api.endpoints import user_settings
 from app.api.endpoints import time_blocks
+from app.api.endpoints import ai
 
 models.Base.metadata.create_all(bind=engine) # Crea las tablas en la base de datos
 
@@ -30,6 +31,7 @@ app.include_router(tasks.router, prefix="/api/tasks", tags=["Tareas"])
 app.include_router(users.router, prefix="/api/users", tags=["Usuarios"])
 app.include_router(user_settings.router, prefix="/api/settings", tags=["Preferencias"])
 app.include_router(time_blocks.router, prefix="/api/time-blocks", tags=["Bloques de Tiempo"])
+app.include_router(ai.router, prefix="/api/ai", tags=["Inteligencia Artificial"])
 
 # 3. Ruta de prueba o "Health Check"
 @app.get("/")
