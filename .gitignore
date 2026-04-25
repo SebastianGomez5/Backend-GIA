@@ -6,3 +6,7 @@ venv/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Google Calendar
+token.json
+credentials.json
