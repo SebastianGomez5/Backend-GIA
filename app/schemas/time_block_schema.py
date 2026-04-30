@@ -3,6 +3,11 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
+class TaskSimpleInfo(BaseModel):
+    title: str
+    
+    model_config = ConfigDict(from_attributes=True)
+
 class TimeBlockBase(BaseModel):
     start_time: datetime
     end_time: datetime
@@ -16,5 +21,7 @@ class TimeBlockResponse(TimeBlockBase):
     id: UUID
     task_id: UUID
     user_id: UUID
+    
+    task: TaskSimpleInfo 
 
     model_config = ConfigDict(from_attributes=True)
