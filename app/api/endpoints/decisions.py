@@ -74,7 +74,7 @@ def log_decision(
             for block in blocks_to_delete:
                 if block.google_event_id:
                     try:
-                        delete_google_event(block.google_event_id)
+                        delete_google_event(current_user, block.google_event_id)  # CAMBIO — pasa current_user
                     except Exception as e:
                         print(f"⚠️ No se pudo eliminar evento de Google: {e}")
                 db.delete(block)

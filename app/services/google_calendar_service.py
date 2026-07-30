@@ -1,76 +1,92 @@
-import os.path
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+import requests
+from datetime import datetime
+from app.core.config import settings
 
-# Si modificas estos SCOPES, elimina el archivo token.json.
-SCOPES = ['https://www.googleapis.com/auth/calendar']
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
 
-def get_calendar_service():
-    """Gestiona la autenticación y devuelve el objeto del servicio de Google Calendar."""
-    creds = None
-    # El archivo token.json guarda los tokens de acceso y refresco del usuario.
-    # Se crea automáticamente cuando el flujo se completa por primera vez.
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    
-    # Si no hay credenciales válidas disponibles, dejamos que el usuario inicie sesión.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        
-        # Guardamos las credenciales para la próxima vez
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
 
-    return build('calendar', 'v3', credentials=creds)
+def get_access_token(refresh_token: str) -> str:
+    """
+    Intercambia el refresh_token del usuario por un access_token fresco.
+    Esto se hace en CADA operación, ya que el access_token expira en 1 hora
+    pero el refresh_token (en modo producción) no expira.
+    """
+    response = requests.post(GOOGLE_TOKEN_URL, data={
+        "client_id": settings.GOOGLE_CLIENT_ID,
+        "client_secret": settings.GOOGLE_CLIENT_SECRET,
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token",
+    })
 
-def create_google_event(task_title, start_time, end_time):
-    """Crea un evento real en el Google Calendar del usuario."""
+    if response.status_code != 200:
+        raise Exception(f"No se pudo renovar el token de Google: {response.json()}")
+
+    return response.json()["access_token"]
+
+
+def create_google_event(user, task_title: str, start_time: datetime, end_time: datetime):
+    """
+    Crea un evento en el Google Calendar del USUARIO específico
+    (usando su propio refresh_token, no uno global).
+    """
+    if not user.google_refresh_token:
+        print(f"⚠️ Usuario {user.id} no tiene Google Calendar conectado. Se omite sincronización.")
+        return None
+
     try:
-        service = get_calendar_service()
+        access_token = get_access_token(user.google_refresh_token)
 
         event = {
-            'summary': task_title,
-            'description': 'Generado por Agenda IA inteligente',
-            'start': {
-                'dateTime': start_time.isoformat(),
-                'timeZone': 'America/Bogota', # Ajusta a tu zona horaria de Colombia
+            "summary": task_title,
+            "description": "Generado por Agenda IA inteligente",
+            "start": {
+                "dateTime": start_time.isoformat(),
+                "timeZone": "America/Bogota",
             },
-            'end': {
-                'dateTime': end_time.isoformat(),
-                'timeZone': 'America/Bogota',
+            "end": {
+                "dateTime": end_time.isoformat(),
+                "timeZone": "America/Bogota",
             },
         }
 
-        event = service.events().insert(calendarId='primary', body=event).execute()
-        return event.get('id')
+        response = requests.post(
+            f"{CALENDAR_API_BASE}/calendars/primary/events",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json=event
+        )
 
-    except HttpError as error:
-        print(f'Ocurrió un error con la API de Google: {error}')
+        if response.status_code not in (200, 201):
+            print(f"⚠️ Error creando evento en Google: {response.json()}")
+            return None
+
+        return response.json().get("id")
+
+    except Exception as e:
+        print(f"⚠️ Error de sincronización con Google Calendar: {e}")
         return None
 
-def delete_google_event(event_id: str):
-    """
-    Elimina un evento específico de Google Calendar usando su ID.
-    Esta función es vital para no duplicar eventos al regenerar la agenda.
-    """
-    if not event_id:
+
+def delete_google_event(user, event_id: str):
+    """Elimina un evento del calendario del usuario específico."""
+    if not event_id or not user.google_refresh_token:
         return False
-        
+
     try:
-        service = get_calendar_service()
-        
-        # 'primary' indica que es el calendario principal del usuario
-        service.events().delete(calendarId='primary', eventId=event_id).execute()
-        print(f"Evento {event_id} eliminado de Google Calendar exitosamente.")
-        return True
+        access_token = get_access_token(user.google_refresh_token)
+
+        response = requests.delete(
+            f"{CALENDAR_API_BASE}/calendars/primary/events/{event_id}",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+
+        if response.status_code in (200, 204, 404):
+            # 404 significa que ya no existe, lo tratamos como éxito
+            return True
+
+        print(f"⚠️ Error eliminando evento de Google: {response.json()}")
+        return False
+
     except Exception as e:
-        print(f"Error al eliminar el evento de Google Calendar: {e}")
+        print(f"⚠️ Error al eliminar evento de Google Calendar: {e}")
         return False

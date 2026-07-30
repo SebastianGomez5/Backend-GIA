@@ -14,30 +14,31 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
     if not settings:
         raise ValueError("El usuario no tiene preferencias configuradas. Por favor, configúralas primero.")
 
+    # NUEVO — Obtenemos el objeto User completo para acceder a su refresh_token
+    current_user = db.query(models.User).filter(models.User.id == user_id).first()
+
     start_of_day = datetime.combine(target_date, time.min)
     end_of_day = datetime.combine(target_date, time.max)
-    
-    # 1. Buscar los bloques viejos del día
+
     old_blocks = db.query(models.TimeBlock).filter(
         models.TimeBlock.user_id == user_id,
         models.TimeBlock.start_time >= start_of_day,
         models.TimeBlock.start_time <= end_of_day
     ).all()
-    
-    # 2. Limpieza profunda: Borrar de Google y luego de la base local
+
     for block in old_blocks:
         task = db.query(models.Task).filter(models.Task.id == block.task_id).first()
         if task and task.status == "Agendada":
             task.status = "Pendiente"
-            
+
         if block.google_event_id:
             try:
-                delete_google_event(block.google_event_id)
+                delete_google_event(current_user, block.google_event_id)  # CAMBIO
             except Exception as e:
                 print(f"⚠️ No se pudo eliminar evento de Google: {e}")
-            
+
         db.delete(block)
-    
+
     db.commit()
 
     # 3. Traer tareas pendientes y ejecutar la IA
@@ -79,11 +80,10 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
     created_blocks = []
     for task_id, (start_time, end_time) in best_schedule.items():
         db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
-        
-        # Google Calendar no bloqueante: si falla, el bloque se crea igual
+
         g_event_id = None
         try:
-            g_event_id = create_google_event(db_task.title, start_time, end_time)
+            g_event_id = create_google_event(current_user, db_task.title, start_time, end_time)  # CAMBIO
         except Exception as e:
             print(f"⚠️ No se pudo sincronizar con Google Calendar: {e}")
 

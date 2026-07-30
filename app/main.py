@@ -10,6 +10,7 @@ from app.api.endpoints import time_blocks
 from app.api.endpoints import ai
 from app.api.endpoints import decisions
 from app.api.endpoints import kpi
+from app.api.endpoints import google_auth
 
 models.Base.metadata.create_all(bind=engine) # Crea las tablas en la base de datos
 
@@ -36,7 +37,7 @@ app.include_router(time_blocks.router, prefix="/api/time-blocks", tags=["Bloques
 app.include_router(ai.router, prefix="/api/ai", tags=["Inteligencia Artificial"])
 app.include_router(decisions.router, prefix="/api/decisions", tags=["Historial de Decisiones"])
 app.include_router(kpi.router, prefix="/api/kpi", tags=["KPIs"])
-
+app.include_router(google_auth.router, prefix="/api/google", tags=["Google Calendar"])
 # 3. Ruta de prueba o "Health Check"
 @app.get("/")
 def read_root():
