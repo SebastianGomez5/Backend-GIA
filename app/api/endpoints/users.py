@@ -8,9 +8,29 @@ from app.db import models
 
 router = APIRouter()
 
-@router.post("/", response_model=user_schema.UserResponse)
-def create_user(user: user_schema.UserCreate, db: Session = Depends(get_db)):
+
+@router.post("/register", response_model=user_schema.UserResponse)
+def register_user(
+    user: user_schema.UserCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Endpoint público de registro. NO requiere autenticación,
+    ya que es el punto de entrada para nuevos usuarios.
+    """
+    # Verificamos que el correo no esté ya registrado
+    existing_user = db.query(models.User).filter(
+        models.User.email == user.email
+    ).first()
+
+    if existing_user:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe una cuenta registrada con este correo."
+        )
+
     return user_service.create_user(db=db, user=user)
+
 
 @router.get("/me", response_model=user_schema.UserResponse)
 def read_user_me(current_user: models.User = Depends(deps.get_current_user)):
