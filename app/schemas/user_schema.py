@@ -16,3 +16,6 @@ class UserResponse(BaseModel):
 class UserPasswordUpdate(BaseModel):
     current_password: str
     new_password: str
+
+class UserNameUpdate(BaseModel):
+    name: str

@@ -33,3 +33,13 @@ def update_password(db: Session, user_id: UUID, password_data: user_schema.UserP
     user.password_hash = pwd_context.hash(password_data.new_password)
     db.commit()
     return True
+
+def update_name(db: Session, user_id: UUID, new_name: str):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        return None
+
+    user.name = new_name
+    db.commit()
+    db.refresh(user)
+    return user

@@ -37,6 +37,18 @@ def read_user_me(current_user: models.User = Depends(deps.get_current_user)):
     # Simplemente devolvemos el usuario que ya fue validado por el token
     return current_user
 
+@router.put("/me/name", response_model=user_schema.UserResponse)
+def update_name(
+    name_data: user_schema.UserNameUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_user)
+):
+    if not name_data.name.strip():
+        raise HTTPException(status_code=400, detail="El nombre no puede estar vacío.")
+
+    updated_user = user_service.update_name(db, current_user.id, name_data.name.strip())
+    return updated_user
+
 @router.put("/me/password")
 def update_password(
     password_data: user_schema.UserPasswordUpdate,
