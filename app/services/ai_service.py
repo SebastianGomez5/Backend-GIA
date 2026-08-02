@@ -7,7 +7,7 @@ from app.db import models
 from app.ai_engine.csp_solver import CSPSolver
 from app.schemas.time_block_schema import TimeBlockCreate
 from app.services import time_block_service, user_settings_service
-from app.services.google_calendar_service import create_google_event, delete_google_event 
+from app.services.google_calendar_service import create_google_event, delete_google_event, get_calendar_events
 
 def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
     settings = user_settings_service.get_user_settings(db, user_id)
@@ -54,18 +54,20 @@ def generate_daily_schedule(db: Session, user_id: UUID, target_date: date):
             "tareas_no_agendadas": []
         }
 
-    # Extraemos la memoria de rechazos para el aprendizaje
     rejected_decisions = db.query(models.DecisionHistory).filter(
         models.DecisionHistory.user_id == user_id,
         models.DecisionHistory.is_accepted == False
     ).all()
 
-    # Inyectamos la memoria al motor CSP
+    # NUEVO — Traemos eventos externos del calendario de Google del usuario
+    external_events = get_calendar_events(current_user, start_of_day, end_of_day)
+
     solver = CSPSolver(
         tasks=tasks, 
         user_settings=settings, 
         target_date=target_date, 
-        rejected_decisions=rejected_decisions
+        rejected_decisions=rejected_decisions,
+        external_events=external_events  # NUEVO
     )
     
     best_schedule = solver.solve()

@@ -90,3 +90,66 @@ def delete_google_event(user, event_id: str):
     except Exception as e:
         print(f"⚠️ Error al eliminar evento de Google Calendar: {e}")
         return False
+
+
+def get_calendar_events(user, start_date: datetime, end_date: datetime):
+    """
+    Obtiene TODOS los eventos del calendario del usuario en un rango de fechas,
+    incluyendo los creados externamente (por otras personas, invitaciones, u otras apps).
+    Filtra los eventos que la propia IA creó, para no duplicarlos.
+    """
+    if not user.google_refresh_token:
+        return []
+
+    try:
+        access_token = get_access_token(user.google_refresh_token)
+
+        # CORREGIDO — Manejamos correctamente fechas con y sin zona horaria
+        def to_google_format(dt):
+            if dt.tzinfo is not None:
+                # Ya trae zona horaria (ej. viene del frontend con "Z")
+                return dt.isoformat()
+            else:
+                # Fecha "naive" (sin zona), asumimos UTC y lo indicamos
+                return dt.isoformat() + "Z"
+
+        params = {
+            "timeMin": to_google_format(start_date),
+            "timeMax": to_google_format(end_date),
+            "singleEvents": True,
+            "orderBy": "startTime",
+        }
+
+        response = requests.get(
+            f"{CALENDAR_API_BASE}/calendars/primary/events",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params=params
+        )
+
+        if response.status_code != 200:
+            print(f"⚠️ Error obteniendo eventos de Google: {response.json()}")
+            return []
+
+        events = response.json().get("items", [])
+
+        external_events = []
+        for event in events:
+            description = event.get("description", "")
+            if "Generado por Agenda IA" in description:
+                continue
+
+            start = event.get("start", {}).get("dateTime")
+            end = event.get("end", {}).get("dateTime")
+
+            if start and end:
+                external_events.append({
+                    "title": event.get("summary", "Evento sin título"),
+                    "start": datetime.fromisoformat(start.replace("Z", "+00:00")).replace(tzinfo=None),
+                    "end": datetime.fromisoformat(end.replace("Z", "+00:00")).replace(tzinfo=None),
+                })
+
+        return external_events
+
+    except Exception as e:
+        print(f"⚠️ Error leyendo calendario de Google: {e}")
+        return []

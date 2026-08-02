@@ -4,7 +4,7 @@ from app.ai_engine.scoring import calculate_slot_penalty, calculate_confidence
 from app.ai_engine.learning import build_user_penalty_profile
 
 class CSPSolver:
-    def __init__(self, tasks, user_settings, target_date, rejected_decisions=None):
+    def __init__(self, tasks, user_settings, target_date, rejected_decisions=None, external_events=None):
         self.tasks = tasks
         self.settings = user_settings
         self.target_date = target_date
@@ -23,6 +23,7 @@ class CSPSolver:
 
         self.unscheduled_tasks = []
         self.confidence_scores = {}
+        self.external_events = external_events or []
 
     def solve(self):
         self.tasks.sort(key=lambda t: (t.is_flexible, -t.priority, -t.duration_minutes))
@@ -99,6 +100,12 @@ class CSPSolver:
         for assigned_start, assigned_end in current_schedule.values():
             if start < assigned_end and end > assigned_start:
                 return False
+
+        # NUEVO — Respetamos los eventos externos de Google Calendar
+        for ext_event in self.external_events:
+            if start < ext_event["end"] and end > ext_event["start"]:
+                return False
+
         return True
 
     def _get_possible_slots(self, task):
